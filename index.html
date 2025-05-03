@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .cuttable {
+            margin: 20px;
+            background: #ddd;
+            padding: 20px;
+            transition: all 0.3s;
+            position: relative;
+            cursor: crosshair;
+        }
+
+        .part {
+            position: absolute;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="cuttable" style="width: 200px; height: 200px; background: #ff6b6b;"></div>
+    <div class="cuttable" style="width: 300px; height: 150px; background: #4ecdc4;"></div>
+    <div class="cuttable" style="width: 250px; height: 250px; background: #45b7d1;"></div>
+
+    <script>
+        let isCutting = false;
+        let cutPath = {};
+
+        document.addEventListener('mousedown', startCut);
+        document.addEventListener('mousemove', duringCut);
+        document.addEventListener('mouseup', finishCut);
+
+        function startCut(e) {    
+            console.debug('Start cut');      
+            isCutting = true;
+        }
+
+        function duringCut(e) {
+            if (!isCutting) return;
+            if (!e.target.classList.contains('cuttable')) return;
+
+            // store the new point in the cut path
+            const rect = e.target.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            const point = { x, y};
+            cutPath[e.target] = cutPath[e.target] || {"element": e.target, "points": []};
+            cutPath[e.target].points.push(point);
+            
+            // Visual feedback while cutting
+            document.body.style.cursor = 'crosshair';
+        }
+
+        function finishCut(e) {
+            if (!isCutting) return;
+
+            console.debug('Finish cut');
+            
+            isCutting = false;
+            document.body.style.cursor = 'default';
+
+            // TODO: cut all element that were cut
+            console.debug('Cutting elements:', cutPath);
+            for (const e of Object.keys(cutPath)) {
+                const element = cutPath[e].element;
+                const points = cutPath[e].points;
+                if (points.length < 2) continue; // Need at least two points
+                splitElement(element, points);
+            }
+
+            // Reset cut path
+            cutPath = {};
+                
+        }
+
+        function splitElement(element, cutPoints) {
+            const rect = element.getBoundingClientRect();
+
+            // Convert points to percentages relative to element size
+            const pathPoints = cutPoints.map(p => ({
+                x: (p.x / rect.width) * 100,
+                y: (p.y / rect.height) * 100
+            }));
+            
+            // Create a new part
+            const part1 = element.cloneNode(true);
+            // const part2 = element.cloneNode(true);
+
+            // Create polygon paths
+            const startEdge = getNearestEdge(pathPoints[0], rect);
+            const endEdge = getNearestEdge(pathPoints[pathPoints.length - 1], rect);
+
+            // First part polygon
+            part1.style.clipPath = createPathPolygon(pathPoints, startEdge, endEdge);
+            
+            // Second part gets inverse path
+            // part2.style.clipPath = createInversePathPolygon(pathPoints, startEdge, endEdge);
+
+
+            const style = getComputedStyle(element);
+            const width = parseFloat(style.width);
+            const height = parseFloat(style.height);
+            const top = parseFloat(style.top);
+            const left = parseFloat(style.left);
+            const paddingLeft = parseFloat(style.paddingLeft);
+            const paddingTop = parseFloat(style.paddingTop);
+            const borderLeft = parseFloat(style.borderLeftWidth);
+            const borderTop = parseFloat(style.borderTopWidth);
+            const contentLeft = left + borderLeft + paddingLeft;
+            const contentTop = top + borderTop + paddingTop;
+
+            // Position parts
+            [part1].forEach(part => {  // , part2
+                console.log(width, height, top, left, paddingLeft, paddingTop, borderLeft, borderTop);
+                
+                part.classList.add('part');
+                part.style.left = `${contentLeft}px`;
+                part.style.top = `${contentTop}px`;
+                part.style.width = `${width}px`;
+                part.style.height = `${height}px`;
+            });
+
+            // Calculate clip paths
+            // const startX = (start.x / rect.width) * 100;
+            // const startY = (start.y / rect.height) * 100;
+            // const endX = (end.x / rect.width) * 100;
+            // const endY = (end.y / rect.height) * 100;
+
+            // part1.style.clipPath = `polygon(0 0, 100% 0, ${endX}% ${endY}%, ${startX}% ${startY}%)`;
+            // part2.style.clipPath = `polygon(${startX}% ${startY}%, ${endX}% ${endY}%, 100% 100%, 0 100%)`;
+
+            // Add to document
+            document.body.appendChild(part1);
+            // document.body.appendChild(part2);
+
+            // Remove original element
+            // element.remove();
+
+            // Calculate areas
+            const area1 = 0.5; // calculateArea(part1);
+            const area2 = 1.0; // calculateArea(part2);
+
+            // Animate smaller part
+            const fallingPart = part1;  // area1 < area2 ? part1 : part2;
+            
+            // Create a falling animation (slow translation down)
+            // https://chatgpt.com/share/68167b11-7c8c-8011-aadd-5fe15a2a2a5d
+            // Set initial styles
+            fallingPart.style.transform = 'translateY(0)';
+            fallingPart.style.transition = 'transform 3s ease-in-out';
+
+            // Force reflow to apply initial styles
+            void fallingPart.offsetWidth; // or fallingPart.getBoundingClientRect();
+
+            // Apply the transformation
+            fallingPart.style.transform = `translateY(${window.innerHeight}px)`;
+
+            // Remove elements after animation
+            setTimeout(() => {
+                part1.remove();
+                // part2.remove();
+            }, 10000);
+        }
+
+        function getNearestEdge(point, rect) {
+            const distances = {
+                left: point.x,
+                right: 100 - point.x,
+                top: point.y,
+                bottom: 100 - point.y
+            };
+            return Object.keys(distances).reduce((a, b) => 
+                distances[a] < distances[b] ? a : b
+            );
+        }
+
+        function createPathPolygon(points, startEdge, endEdge) {
+            const startCorner = getCornerPoints(startEdge);
+            const endCorner = getCornerPoints(endEdge);
+            
+            return `polygon(
+                ${startCorner.join(",")},
+                ${points.map(p => `${p.x}% ${p.y}%`).join(",")},
+                ${endCorner.join(",")}
+            )`;
+        }
+
+        function createInversePathPolygon(points, startEdge, endEdge) {
+            const startCorner = getCornerPoints(startEdge).reverse();
+            const endCorner = getCornerPoints(endEdge).reverse();
+            
+            return `polygon(
+                ${points.map(p => `${p.x}% ${p.y}%`).reverse().join(",")},
+                ${startCorner.join(",")},
+                ${endCorner.join(",")}
+            )`;
+        }
+
+        function getCornerPoints(edge) {
+            const corners = {
+                left: ["0% 0%", "0% 100%"],
+                right: ["100% 0%", "100% 100%"],
+                top: ["0% 0%", "100% 0%"],
+                bottom: ["0% 100%", "100% 100%"]
+            };
+            return corners[edge];
+        }
+
+        function calculateArea(element) {
+            const clipPath = element.style.clipPath;
+            const values = clipPath.match(/[\d.]+%/g).map(v => parseFloat(v));
+            const points = [];
+            
+            for (let i = 0; i < values.length; i += 2) {
+                points.push({
+                    x: values[i] / 100,
+                    y: values[i + 1] / 100
+                });
+            }
+
+            // Shoelace formula
+            let area = 0;
+            const n = points.length;
+            for (let i = 0; i < n; i++) {
+                const j = (i + 1) % n;
+                area += points[i].x * points[j].y - points[j].x * points[i].y;
+            }
+            return Math.abs(area) / 2;
+        }
+    </script>
+</body>
+</html>
