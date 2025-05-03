@@ -30,13 +30,14 @@
 
     <script>
         let isCutting = false;
-        let cutPath = {};
+        let cutPath = new WeakMap(); // Stores elements as keys automatically
+        const cutElements = new Set(); // Track which elements were cut
 
         document.addEventListener('mousedown', startCut);
         document.addEventListener('mousemove', duringCut);
         document.addEventListener('mouseup', finishCut);
 
-        function startCut(e) {    
+        function startCut(e) {
             console.debug('Start cut');      
             isCutting = true;
         }
@@ -50,8 +51,16 @@
             const x = e.clientX - rect.left;
             const y = e.clientY - rect.top;
             const point = { x, y};
-            cutPath[e.target] = cutPath[e.target] || {"element": e.target, "points": []};
-            cutPath[e.target].points.push(point);
+
+            // Get or create path data for this element
+            if (!cutPath.has(e.target)) {
+                cutPath.set(e.target, {
+                    element: e.target,
+                    points: []
+                });
+                cutElements.add(e.target); // Track new element
+            }
+            cutPath.get(e.target).points.push(point);
             
             // Visual feedback while cutting
             document.body.style.cursor = 'crosshair';
@@ -61,20 +70,19 @@
             if (!isCutting) return;
 
             console.debug('Finish cut');
-            
             isCutting = false;
             document.body.style.cursor = 'default';
 
-            for (const e of Object.keys(cutPath)) {
-                const element = cutPath[e].element;
-                const points = cutPath[e].points;
-                if (points.length < 2) continue; // Need at least two points
-                splitElement(element, points);
-            }
+            cutElements.forEach(element => {
+                const pathData = cutPath.get(element);
+                if (pathData.points.length >= 2) { // Need at least 2 points to cut
+                    splitElement(element, pathData.points);
+                }
+            });
 
             // Reset cut path
-            cutPath = {};
-                
+            cutPath = new WeakMap(); // Clear the path data
+            cutElements.clear(); // Clear the set of cut elements
         }
 
         function splitElement(element, cutPoints) {
@@ -107,14 +115,14 @@
             const style = getComputedStyle(element);
             const width = parseFloat(style.width);
             const height = parseFloat(style.height);
-            const top = parseFloat(style.top);
-            const left = parseFloat(style.left);
+            const top = rect.top;
+            const left = rect.left;
             const paddingLeft = parseFloat(style.paddingLeft);
             const paddingTop = parseFloat(style.paddingTop);
             const borderLeft = parseFloat(style.borderLeftWidth);
             const borderTop = parseFloat(style.borderTopWidth);
-            const contentLeft = left + borderLeft + paddingLeft;
-            const contentTop = top + borderTop + paddingTop;
+            const contentLeft = left - borderLeft - paddingLeft; // + borderLeft + paddingLeft;
+            const contentTop = top - borderTop - paddingTop; // + borderTop + paddingTop;
 
             // Position parts
             [part1].forEach(part => {         
