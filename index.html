@@ -15,6 +15,7 @@
             transition: all 0.3s;
             position: relative;
             cursor: crosshair;
+            clip-rule: nonzero;
         }
 
         .part {
@@ -90,17 +91,22 @@
             
             // Create a new part
             const part1 = element.cloneNode(true);
-            // const part2 = element.cloneNode(true);
 
             // Create polygon paths
             const startEdge = getNearestEdge(pathPoints[0], rect);
             const endEdge = getNearestEdge(pathPoints[pathPoints.length - 1], rect);
 
+            // Get projections before creating polygons
+            const startProj = projectToEdge(pathPoints[0], startEdge);
+            const endProj = projectToEdge(pathPoints[pathPoints.length - 1], endEdge);
+
             // First part polygon
-            part1.style.clipPath = createPathPolygon(pathPoints, startEdge, endEdge);
+            const polygonPath = createPathPolygon(pathPoints, startEdge, endEdge, startProj, endProj);
+            part1.style.clipPath = polygonPath;
+            part1.style.clipRule = 'nonzero';
             
             // Second part gets inverse path
-            // part2.style.clipPath = createInversePathPolygon(pathPoints, startEdge, endEdge);
+            // element.style.clipPath = createInversePathPolygon(pathPoints, startEdge, endEdge, startProj, endProj);
 
 
             const style = getComputedStyle(element);
@@ -126,27 +132,8 @@
                 part.style.height = `${height}px`;
             });
 
-            // Calculate clip paths
-            // const startX = (start.x / rect.width) * 100;
-            // const startY = (start.y / rect.height) * 100;
-            // const endX = (end.x / rect.width) * 100;
-            // const endY = (end.y / rect.height) * 100;
-
-            // part1.style.clipPath = `polygon(0 0, 100% 0, ${endX}% ${endY}%, ${startX}% ${startY}%)`;
-            // part2.style.clipPath = `polygon(${startX}% ${startY}%, ${endX}% ${endY}%, 100% 100%, 0 100%)`;
-
             // Add to document
             document.body.appendChild(part1);
-            // document.body.appendChild(part2);
-
-            // Remove original element
-            // element.remove();
-
-            // Calculate areas
-            const area1 = 0.5; // calculateArea(part1);
-            const area2 = 1.0; // calculateArea(part2);
-
-            // Animate smaller part
             const fallingPart = part1;  // area1 < area2 ? part1 : part2;
             
             // Create a falling animation (slow translation down)
@@ -164,8 +151,17 @@
             // Remove elements after animation
             setTimeout(() => {
                 part1.remove();
-                // part2.remove();
             }, 10000);
+        }
+
+        // New projection helper
+        function projectToEdge(point, edge) {
+            return {
+                left: {x: 0, y: point.y},
+                right: {x: 100, y: point.y},
+                top: {x: point.x, y: 0},
+                bottom: {x: point.x, y: 100}
+            }[edge];
         }
 
         function getNearestEdge(point, rect) {
@@ -180,24 +176,61 @@
             );
         }
 
-        function createPathPolygon(points, startEdge, endEdge) {
+        function createPathPolygon(points, startEdge, endEdge, startProj, endProj) {
+            // if startEdge and endEdge are the same, we can use a simple polygon
+            if (startEdge === endEdge) {
+                return `polygon(
+                    ${startProj.x}% ${startProj.y}%,
+                    ${points.map(p => `${p.x}% ${p.y}%`).join(",")},
+                    ${endProj.x}% ${endProj.y}%
+                )`;
+            }
+
             const startCorner = getCornerPoints(startEdge);
             const endCorner = getCornerPoints(endEdge);
-            
-            return `polygon(
-                ${startCorner.join(",")},
+
+            // if startCorner and endCorner share a corner, we can use a simple polygon
+            const sharedCorner = startCorner.find(c => endCorner.includes(c));
+            if (sharedCorner) {
+                return `polygon(
+                    ${startProj.x}% ${startProj.y}%,
+                    ${points.map(p => `${p.x}% ${p.y}%`).join(",")},
+                    ${endProj.x}% ${endProj.y}%,
+                    ${sharedCorner}
+                )`;
+            }
+
+            // otherwise, we need to create a more complex polygon
+            const polygon1 = `polygon(
+                ${startCorner[1]},
+                ${startProj.x}% ${startProj.y}%,
                 ${points.map(p => `${p.x}% ${p.y}%`).join(",")},
-                ${endCorner.join(",")}
+                ${endProj.x}% ${endProj.y}%,
+                ${endCorner[1]}
             )`;
+
+            const polygon0 = `polygon(
+                ${startCorner[0]},
+                ${startProj.x}% ${startProj.y}%,
+                ${points.map(p => `${p.x}% ${p.y}%`).join(",")},
+                ${endProj.x}% ${endProj.y}%,
+                ${endCorner[0]}
+            )`;
+            const area1 = calculatePolygonArea(polygon1);
+            const area0 = calculatePolygonArea(polygon0);
+            console.debug('Area 1:', area1, 'Area 0:', area0);
+
+            return area1 < area0 ? polygon1 : polygon0;
         }
 
-        function createInversePathPolygon(points, startEdge, endEdge) {
-            const startCorner = getCornerPoints(startEdge).reverse();
-            const endCorner = getCornerPoints(endEdge).reverse();
-            
+        function createInversePathPolygon(points, startEdge, endEdge, startProj, endProj) {
+            // first, get opposite 
+
             return `polygon(
-                ${points.map(p => `${p.x}% ${p.y}%`).reverse().join(",")},
                 ${startCorner.join(",")},
+                ${startProj.x}% ${startProj.y}%,
+                ${points.map(p => `${p.x}% ${p.y}%`).join(",")},
+                ${endProj.x}% ${endProj.y}%,
                 ${endCorner.join(",")}
             )`;
         }
@@ -213,25 +246,26 @@
         }
 
         function calculateArea(element) {
-            const clipPath = element.style.clipPath;
-            const values = clipPath.match(/[\d.]+%/g).map(v => parseFloat(v));
-            const points = [];
-            
-            for (let i = 0; i < values.length; i += 2) {
-                points.push({
-                    x: values[i] / 100,
-                    y: values[i + 1] / 100
-                });
-            }
+            const polygon = element.style.clipPath;
+            return calculatePolygonArea(polygon);
+        }
 
-            // Shoelace formula
-            let area = 0;
-            const n = points.length;
-            for (let i = 0; i < n; i++) {
-                const j = (i + 1) % n;
-                area += points[i].x * points[j].y - points[j].x * points[i].y;
+        function calculatePolygonArea(polygon) {
+            const points = polygon.match(/[\d.]+%/g).map(v => parseFloat(v));
+            // group points into pairs
+            const pairs = [];
+            for (let i = 0; i < points.length; i += 2) {
+                pairs.push({ x: points[i], y: points[i + 1] });
             }
-            return Math.abs(area) / 2;
+            // calculate area using the shoelace formula
+            let area = 0;
+            for (let i = 0; i < pairs.length; i++) {
+                const j = (i + 1) % pairs.length;
+                area += pairs[i].x * pairs[j].y;
+                area -= pairs[j].x * pairs[i].y;
+            }
+            area = Math.abs(area) / 2;
+            return area;
         }
     </script>
 </body>
