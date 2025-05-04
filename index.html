@@ -32,6 +32,7 @@
         document.addEventListener('dragstart', e => e.preventDefault());
 
         let isCutting = false;
+        let oldCutPath = new WeakMap(); // Stores elements as keys automatically
         let cutPath = new WeakMap(); // Stores elements as keys automatically
         const cutElements = new Set(); // Track which elements were cut
 
@@ -82,16 +83,40 @@
             cutElements.forEach(element => {
                 const pathData = cutPath.get(element);
                 if (pathData.points.length >= 2) { // Need at least 2 points to cut
-                    splitElement(element, pathData.points);
+                    const oldCutPoints = oldCutPath.get(element)?.points;
+                    splitElement(element, pathData.points, oldCutPoints);
                 }
             });
 
-            // Reset cut path
+            // save cut path to oldCutPath
+            cutElements.forEach(element => {
+                const pathData = cutPath.get(element);
+                if (pathData) {
+                    oldCutPath.set(element, {
+                        element: element,
+                        points: pathData.points
+                    });
+                }
+            });
             cutPath = new WeakMap(); // Clear the path data
             cutElements.clear(); // Clear the set of cut elements
         }
 
-        function splitElement(element, cutPoints) {
+        function pointsToPolygon(points) {
+            return `polygon(${points.map(p => `${p.x}% ${p.y}%`).join(",")})`;
+        }
+
+        function splitElement(element, cutPoints, oldCutPoints) {
+            // TODO: the question is not really whether the new cut is smaller, but rather whether it is inscribed in the old cut
+            // if (oldCutPoints) {
+            //     const oldArea = calculatePolygonArea(pointsToPolygon(oldCutPoints));
+            //     const newArea = calculatePolygonArea(pointsToPolygon(cutPoints));
+            //     if (newArea < oldArea) {
+            //         console.log("Cutting area is smaller than old area, skipping cut");
+            //         return;
+            //     }
+            // }
+
             const rect = element.getBoundingClientRect();
 
             // Convert points to percentages relative to element size
