@@ -18,5 +18,15 @@
         "<all_urls>"
       ]
     }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "pointer.png"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
   ]
 }

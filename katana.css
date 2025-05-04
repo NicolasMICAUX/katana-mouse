@@ -16,4 +16,5 @@ body {
 .part {
     position: absolute;
     pointer-events: none;
+    z-index: 9999;
 }

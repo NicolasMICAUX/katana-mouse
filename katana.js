@@ -17,7 +17,7 @@ function isCuttable(element) {
     if (width > 200 || height > 200) {
         return false;
     }
-    // TODO: ensure most of this space is the element and not its child elements
+    // TODO: ensure most of this space is the element and not its child elements, to remove quasi-duplicate elements
     return true;
 }
 
@@ -26,14 +26,15 @@ function startCut(e) {
         finishCut(e);
         return;
     }
-    console.debug('Start cut');
+    // console.debug('Start cut');
     isCutting = true;
 }
 
 function duringCut(e) {
     if (!isCutting) return;
     if (!e.target || !isCuttable(e.target)) return;
-    // console.log(e.target);
+
+    e.target.style.cursor = `url(${chrome.runtime.getURL('pointer.png')}), auto`;
 
     // store the new point in the cut path
     const rect = e.target.getBoundingClientRect();
@@ -50,15 +51,12 @@ function duringCut(e) {
         cutElements.add(e.target); // Track new element
     }
     cutPath.get(e.target).points.push(point);
-    
-    // Visual feedback while cutting
-    document.body.style.cursor = 'crosshair';
 }
 
 function finishCut(e) {
     if (!isCutting) return;
 
-    console.debug('Finish cut');
+    // console.debug('Finish cut');
     isCutting = false;
     document.body.style.cursor = 'default';
 
