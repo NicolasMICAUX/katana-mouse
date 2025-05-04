@@ -1,0 +1,19 @@
+body {
+    min-height: 100vh;
+    margin: 0;
+    padding: 20px;
+}
+
+.cuttable {
+    margin: 20px;
+    background: #ddd;
+    padding: 20px;
+    transition: all 0.3s;
+    position: relative;
+    cursor: crosshair;
+}
+
+.part {
+    position: absolute;
+    pointer-events: none;
+}
