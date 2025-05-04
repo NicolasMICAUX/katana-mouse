@@ -233,13 +233,22 @@
             // if startEdge and endEdge are the same, we need to add all other corners
             if (startEdge === endEdge) {
                 const otherCorners = getCornersStartingFrom(startEdge);
-                // TODO: depending on the order of the points, i should reverse the order of the otherCorners
-                return `polygon(
+                const polygon1 = `polygon(
                     ${startProj.x}% ${startProj.y}%,
                     ${points.map(p => `${p.x}% ${p.y}%`).join(",")},
                     ${endProj.x}% ${endProj.y}%,
                     ${otherCorners.join(",")}
                 )`;
+                const polygon0 = `polygon(
+                    ${startProj.x}% ${startProj.y}%,
+                    ${points.map(p => `${p.x}% ${p.y}%`).join(",")},
+                    ${endProj.x}% ${endProj.y}%,
+                    ${otherCorners.reverse().join(",")}
+                )`;
+                // keep the one with the smallest area
+                const area1 = calculatePolygonArea(polygon1);
+                const area0 = calculatePolygonArea(polygon0);
+                return area1 < area0 ? polygon1 : polygon0;
             }
 
             const startCorner = getCornerPoints(startEdge);
@@ -249,21 +258,31 @@
             const sharedCorner = startCorner.find(c => endCorner.includes(c));
             if (sharedCorner) {
                 const otherCorners = getCornersStartingFrom(startEdge).filter(c => c !== sharedCorner);
-                // TODO: depending on the order of the points, i should reverse the order of the otherCorners
-                return `polygon(
+                const polygon1 =  `polygon(
                     ${startProj.x}% ${startProj.y}%,
                     ${points.map(p => `${p.x}% ${p.y}%`).join(",")},
                     ${endProj.x}% ${endProj.y}%,
                     ${otherCorners.join(",")}
                 )`;
+                const polygon0 = `polygon(
+                    ${startProj.x}% ${startProj.y}%,
+                    ${points.map(p => `${p.x}% ${p.y}%`).join(",")},
+                    ${endProj.x}% ${endProj.y}%,
+                    ${otherCorners.reverse().join(",")}
+                )`;
+                // keep the one with the largest area
+                const area1 = calculatePolygonArea(polygon1);
+                const area0 = calculatePolygonArea(polygon0);
+                return area1 > area0 ? polygon1 : polygon0;
             }
 
             // Otherwise, we need to create a more complex polygon
+            // TODO: bug for cuts on the left or top of objects with this mode: where nothing is hidden
             const polygon1 = `polygon(
                 ${startCorner[1]},
                 ${startProj.x}% ${startProj.y}%,
                 ${points.map(p => `${p.x}% ${p.y}%`).join(",")},
-                ${endProj.x}% ${endProj.y}%
+                ${endProj.x}% ${endProj.y}%,
                 ${endCorner[1]}
             )`;
 
@@ -276,7 +295,7 @@
             )`;
             const area1 = calculatePolygonArea(polygon1);
             const area0 = calculatePolygonArea(polygon0);
-
+            
             return area1 > area0 ? polygon1 : polygon0;
         }
 
