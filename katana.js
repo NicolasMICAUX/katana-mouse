@@ -9,6 +9,18 @@ document.addEventListener('mousedown', startCut);
 document.addEventListener('mousemove', duringCut);
 document.addEventListener('mouseup', finishCut);
 
+function isCuttable(element) {
+    // Small element (either width or height < 100px)
+    const rect = element.getBoundingClientRect();
+    const width = rect.width;
+    const height = rect.height;
+    if (width > 200 || height > 200) {
+        return false;
+    }
+    // TODO: ensure most of this space is the element and not its child elements
+    return true;
+}
+
 function startCut(e) {
     if (isCutting) {  // should not happen, but sometimes it does, because of bugs
         finishCut(e);
@@ -20,7 +32,8 @@ function startCut(e) {
 
 function duringCut(e) {
     if (!isCutting) return;
-    if (!e.target.classList.contains('cuttable')) return;
+    if (!e.target || !isCuttable(e.target)) return;
+    // console.log(e.target);
 
     // store the new point in the cut path
     const rect = e.target.getBoundingClientRect();
@@ -115,8 +128,8 @@ function splitElement(element, cutPoints, oldCutPoints) {
     const style = getComputedStyle(element);
     const width = parseFloat(style.width);
     const height = parseFloat(style.height);
-    const top = rect.top;
-    const left = rect.left;
+    const top = rect.top + window.scrollY;
+    const left = rect.left + window.scrollX;
     const paddingLeft = parseFloat(style.paddingLeft);
     const paddingTop = parseFloat(style.paddingTop);
     const borderLeft = parseFloat(style.borderLeftWidth);
