@@ -29,6 +29,8 @@
     <div class="cuttable" style="width: 250px; height: 250px; background: #45b7d1;"></div>
 
     <script>
+        document.addEventListener('dragstart', e => e.preventDefault());
+
         let isCutting = false;
         let cutPath = new WeakMap(); // Stores elements as keys automatically
         const cutElements = new Set(); // Track which elements were cut
@@ -38,7 +40,11 @@
         document.addEventListener('mouseup', finishCut);
 
         function startCut(e) {
-            console.debug('Start cut');      
+            if (isCutting) {  // should not happen, but sometimes it does, because of bugs
+                finishCut(e);
+                return;
+            }
+            console.debug('Start cut');
             isCutting = true;
         }
 
