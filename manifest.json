@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "Katana Please!",
+  "description": "",
+  "version": "1.0",
+  "icons": {
+    "128": "icon128.png"
+  },
+  "content_scripts": [
+    {
+      "js": [
+        "katana.js"
+      ],
+      "css": [
+        "katana.css"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ]
+}
